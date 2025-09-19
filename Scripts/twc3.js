@@ -366,8 +366,17 @@ var GetClosestCurrentWeather = function (WeatherParameters, Distance)
         WeatherParameters.SkipClosestWeatherStationIds = [];
     }
 
+    // approx 70 miles per degree
+    var degreeDistance = (Distance / 2) / 70;
+    var lat0 = parseFloat(WeatherParameters.Latitude) - degreeDistance;
+    var lon0 = parseFloat(WeatherParameters.Longitude) - degreeDistance;
+    var lat1 = parseFloat(WeatherParameters.Latitude) + degreeDistance;
+    var lon1 = parseFloat(WeatherParameters.Longitude) + degreeDistance;
+    var boundingBox = `${lat0},${lon0},${lat1},${lon1}`;
+
     // Get the current weather from the next closest station.
-    var Url = "https://aviationweather.gov/cgi-bin/data/dataserver.php?datasource=metars&requesttype=retrieve&format=xml&hoursBeforeNow=1";
+    var Url = "https://aviationweather.gov/api/data/dataserver?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=1";
+    Url += "&boundingBox=" + boundingBox;
     Url += "&radialDistance=" + Distance.toString();
     Url += ";" + WeatherParameters.Longitude;
     Url += "," + WeatherParameters.Latitude;
@@ -391,8 +400,21 @@ var GetClosestCurrentWeather = function (WeatherParameters, Distance)
                 return;
             }
 
-            //var WeatherRegionalMetarsParser = new WeatherRegionalMetarsParser($xml);
+            var distances = [];
+
             $xml.find("response").find("data").find("METAR").each(function ()
+            {
+                var data_METAR = $(this);
+                var latitude = parseFloat(data_METAR.find("latitude").text());
+                var longitude = parseFloat(data_METAR.find("longitude").text());
+
+                // Calculate distance from the latitude and longitude compared to WeatherParameters.Latitude and WeatherParameters.Longitude
+                var distance = getDistanceFromLatLonInMiles(WeatherParameters.Latitude, WeatherParameters.Longitude, latitude, longitude);
+                data_METAR.data("distance", distance);
+                insertSortedByDistance(distances, data_METAR);
+            });
+
+            $(distances).each(function ()
             {
                 var data_METAR = $(this);
                 var StationId = data_METAR.find("station_id").text();
@@ -712,6 +734,12 @@ var GetMonthPrecipitationProcessResponse = function (WeatherParameters, json, in
     var AirportName = json.location.airportName[index];
     var AirportCode = json.location.iataCode[index];
     WeatherParameters.AirportCode = AirportCode;
+
+    if (AirportCode === null)
+    {
+        GetMonthPrecipitationProcessResponse(WeatherParameters, json, index + 1);
+        return;
+    }
 
     //https://forecast.weather.gov/product.php?site=NWS&issuedby=ISP&product=CLI&format=txt&version=1&glossary=1&highlight=off
     var Url = "https://forecast.weather.gov/product.php?site=NWS&issuedby=";
@@ -3135,7 +3163,7 @@ var GetWeatherHazards3 = function (WeatherParameters)
 
 var GetWeatherMetar = function (WeatherParameters)
 {
-    var Url = "https://aviationweather.gov/cgi-bin/data/dataserver.php?datasource=metars&requesttype=retrieve&format=xml&hoursBeforeNow=3";
+    var Url = "https://aviationweather.gov/api/data/dataserver?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=3";
     Url += "&stationString=" + WeatherParameters.StationId;
     //Url += "," + (new Date().getTime()); // Prevents caching
     //Url = "https://crossorigin.me/" + Url; // Need to do this for Chrome and CORS
@@ -9662,7 +9690,16 @@ var GetRegionalStations = function (WeatherParameters, Distance)
         WeatherParameters.WeatherCurrentRegionalConditions = new WeatherCurrentRegionalConditions();
     }
 
-    var Url = "https://aviationweather.gov/cgi-bin/data/dataserver.php?datasource=metars&requesttype=retrieve&format=xml&hoursBeforeNow=1";
+    // approx 70 miles per degree
+    var degreeDistance = (Distance / 2) / 70;
+    var lat0 = parseFloat(WeatherParameters.Latitude) - degreeDistance;
+    var lon0 = parseFloat(WeatherParameters.Longitude) - degreeDistance;
+    var lat1 = parseFloat(WeatherParameters.Latitude) + degreeDistance;
+    var lon1 = parseFloat(WeatherParameters.Longitude) + degreeDistance;
+    var boundingBox = `${lat0},${lon0},${lat1},${lon1}`;
+
+    var Url = "https://aviationweather.gov/api/data/dataserver?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=1";
+    Url += "&boundingBox=" + boundingBox;
     Url += "&radialDistance=" + Distance.toString();
     Url += ";" + WeatherParameters.Longitude;
     Url += "," + WeatherParameters.Latitude;
@@ -9690,8 +9727,21 @@ var GetRegionalStations = function (WeatherParameters, Distance)
                 return;
             }
 
-            //var WeatherRegionalMetarsParser = new WeatherRegionalMetarsParser($xml);
+            var distances = [];
+
             $xml.find("response").find("data").find("METAR").each(function ()
+            {
+                var data_METAR = $(this);
+                var latitude = parseFloat(data_METAR.find("latitude").text());
+                var longitude = parseFloat(data_METAR.find("longitude").text());
+
+                // Calculate distance from the latitude and longitude compared to WeatherParameters.Latitude and WeatherParameters.Longitude
+                var distance = getDistanceFromLatLonInMiles(WeatherParameters.Latitude, WeatherParameters.Longitude, latitude, longitude);
+                data_METAR.data("distance", distance);
+                insertSortedByDistance(distances, data_METAR);
+            });
+
+            $(distances).each(function ()
             {
                 var data_METAR = $(this);
                 var StationId = data_METAR.find("station_id").text();
@@ -10511,7 +10561,7 @@ var ShowRegionalMap = function (WeatherParameters, TomorrowForecast1, TomorrowFo
             var maxLon = MinMaxLatLon.MaxLongitude - 1; // Prevent cities from being cut off on the right side.
             var minLon = MinMaxLatLon.MinLongitude;
 
-            var Url = "https://aviationweather.gov/cgi-bin/data/dataserver.php?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=1&minLon=" + minLon + "&minLat=" + minLat + "&maxLon=" + maxLon + "&maxLat=" + maxLat;
+            var Url = "https://aviationweather.gov/api/data/dataserver?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=1&minLon=" + minLon + "&minLat=" + minLat + "&maxLon=" + maxLon + "&maxLat=" + maxLat;
 
             if (DontLoadGifs == true)
             {
@@ -10787,7 +10837,7 @@ var ShowRegionalMap = function (WeatherParameters, TomorrowForecast1, TomorrowFo
                         return;
                     }
 
-                    var Url = "https://aviationweather.gov/cgi-bin/data/dataserver.php?datasource=metars&requesttype=retrieve&format=xml&hoursBeforeNow=3";
+                    var Url = "https://aviationweather.gov/api/data/dataserver?dataSource=metars&requestType=retrieve&format=xml&hoursBeforeNow=3";
                     Url += "&stationString=" + StationId;
                     //Url = "cors/?u=" + encodeURIComponent(Url);
 
@@ -12513,7 +12563,7 @@ var Progress = function (e)
             ////DrawText(context, "Star4000 Large", "16pt", "#ffff00", 170, 80, "Conditions", 3);
             //DrawText(context, "Star4000 Large", "16pt", "#ffff00", 170, 55, "WeatherStar", 3);
             //DrawText(context, "Star4000 Large", "16pt", "#ffff00", 170, 80, "4000+", 3);
-            DrawTitleText(context, "WeatherStar", "4000+ 1.81                             ");
+            DrawTitleText(context, "WeatherStar", "4000+ 1.82                             ");
 
             // Draw a box for the progress.
             //context.fillStyle = "#000000";
@@ -15095,3 +15145,30 @@ var BeepOnTimeUpdate = function ()
 
     RefreshStateOfBeepAudio();
 };
+
+// Calculate distance (in miles) between two lat/lon points using the Haversine formula
+function getDistanceFromLatLonInMiles(lat1, lon1, lat2, lon2)
+{
+    var R = 3958.8; // Radius of the earth in miles
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    var d = R * c; // Distance in miles
+    return d;
+}
+
+// Insert an item into a sorted array by a specific property (e.g., distance)
+function insertSortedByDistance(array, item)
+{
+    let i = 0;
+    while (i < array.length
+        && parseFloat(array[i].data("distance")) < parseFloat(item.data("distance")))
+    {
+        i++;
+    }
+    array.splice(i, 0, item);
+}
